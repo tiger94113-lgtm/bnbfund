@@ -964,1337 +964,1332 @@ function showToast(msg, type) {
 })();
 
 // ==================== ABI ====================
-const CONTRACT_ABI = [{
-  "_format": "hh-sol-artifact-1",
-  "contractName": "WealthFundTestnet",
-  "sourceName": "contracts/WealthFundTestnet.sol",
-  "abi": [
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_foundationWallet",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "constructor"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "funder",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "ContractFunded",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "startTime",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "endTime",
-          "type": "uint256"
-        }
-      ],
-      "name": "CrowdfundingTimeSet",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "oldWallet",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newWallet",
-          "type": "address"
-        }
-      ],
-      "name": "FoundationWalletChanged",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "from",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "FundsSentToFoundation",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "pkg",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "profit",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "unlockTime",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "referrer",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "referralAmount",
-          "type": "uint256"
-        }
-      ],
-      "name": "Invested",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "owner",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "OwnerWithdrawn",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "previousOwner",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "newOwner",
-          "type": "address"
-        }
-      ],
-      "name": "OwnershipTransferred",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "pkg",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "goal",
-          "type": "uint256"
-        }
-      ],
-      "name": "PackageGoalSet",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "bool",
-          "name": "paused",
-          "type": "bool"
-        }
-      ],
-      "name": "PauseStateChanged",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "referrer",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "referee",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "pkg",
-          "type": "uint8"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "ReferralPaid",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "investmentId",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "principal",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "profit",
-          "type": "uint256"
-        }
-      ],
-      "name": "Withdrawn",
-      "type": "event"
-    },
-    {
-      "stateMutability": "payable",
-      "type": "fallback"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "_pkg",
-          "type": "uint8"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "calculateProfit",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "profit",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalReturn",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "crowdfundingEndTime",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "crowdfundingStartTime",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "foundationWallet",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "fundContract",
-      "outputs": [],
-      "stateMutability": "payable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_user",
-          "type": "address"
-        }
-      ],
-      "name": "getActiveAmount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "total",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getAllPackageCrowdfunding",
-      "outputs": [
-        {
-          "internalType": "uint256[4]",
-          "name": "goals",
-          "type": "uint256[4]"
-        },
-        {
-          "internalType": "uint256[4]",
-          "name": "raised",
-          "type": "uint256[4]"
-        },
-        {
-          "internalType": "uint256[4]",
-          "name": "progressBps",
-          "type": "uint256[4]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getAllPackages",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint256",
-              "name": "duration",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "profitRate",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "referralRate",
-              "type": "uint256"
-            }
-          ],
-          "internalType": "struct WealthFundTestnet.PackageInfo[4]",
-          "name": "",
-          "type": "tuple[4]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getContractBalance",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getCrowdfundingInfo",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "totalGoal",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "startTime",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "endTime",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalRaised",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "progressBps",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getGlobalStats",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "_totalInvestedBNB",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_totalPaidProfit",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_totalPaidPrincipal",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_totalReferralPaid",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_totalSentToFoundation",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_totalUsers",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_contractBalance",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bool",
-          "name": "_paused",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_user",
-          "type": "address"
-        }
-      ],
-      "name": "getMaturedAmount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "total",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_user",
-          "type": "address"
-        }
-      ],
-      "name": "getMaturedInvestmentIds",
-      "outputs": [
-        {
-          "internalType": "uint256[]",
-          "name": "ids",
-          "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "_pkg",
-          "type": "uint8"
-        }
-      ],
-      "name": "getPackageCrowdfunding",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "goal",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "raised",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "progressBps",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "_pkg",
-          "type": "uint8"
-        }
-      ],
-      "name": "getPackageInfo",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "duration",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "profitRate",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "referralRate",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_user",
-          "type": "address"
-        }
-      ],
-      "name": "getUserInvestmentCount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_user",
-          "type": "address"
-        }
-      ],
-      "name": "getUserInvestments",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint256",
-              "name": "id",
-              "type": "uint256"
-            },
-            {
-              "internalType": "enum WealthFundTestnet.PackageType",
-              "name": "pkg",
-              "type": "uint8"
-            },
-            {
-              "internalType": "uint256",
-              "name": "amount",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "profit",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "startTime",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "unlockTime",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bool",
-              "name": "withdrawn",
-              "type": "bool"
-            },
-            {
-              "internalType": "address",
-              "name": "referrer",
-              "type": "address"
-            }
-          ],
-          "internalType": "struct WealthFundTestnet.Investment[]",
-          "name": "",
-          "type": "tuple[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_user",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_offset",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_limit",
-          "type": "uint256"
-        }
-      ],
-      "name": "getUserInvestmentsPaginated",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint256",
-              "name": "id",
-              "type": "uint256"
-            },
-            {
-              "internalType": "enum WealthFundTestnet.PackageType",
-              "name": "pkg",
-              "type": "uint8"
-            },
-            {
-              "internalType": "uint256",
-              "name": "amount",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "profit",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "startTime",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "unlockTime",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bool",
-              "name": "withdrawn",
-              "type": "bool"
-            },
-            {
-              "internalType": "address",
-              "name": "referrer",
-              "type": "address"
-            }
-          ],
-          "internalType": "struct WealthFundTestnet.Investment[]",
-          "name": "result",
-          "type": "tuple[]"
-        },
-        {
-          "internalType": "uint256",
-          "name": "total",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_user",
-          "type": "address"
-        }
-      ],
-      "name": "getUserStats",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "bool",
-              "name": "exists",
-              "type": "bool"
-            },
-            {
-              "internalType": "uint256",
-              "name": "totalInvested",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "totalPrincipalReturned",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "totalProfitEarned",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "totalReferralEarnings",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "referralCount",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "investmentCount",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "activeInvestments",
-              "type": "uint256"
-            }
-          ],
-          "internalType": "struct WealthFundTestnet.UserStats",
-          "name": "",
-          "type": "tuple"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "_pkg",
-          "type": "uint8"
-        },
-        {
-          "internalType": "address",
-          "name": "_referrer",
-          "type": "address"
-        }
-      ],
-      "name": "invest",
-      "outputs": [],
-      "stateMutability": "payable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "_pkg",
-          "type": "uint8"
-        }
-      ],
-      "name": "investWithoutReferrer",
-      "outputs": [],
-      "stateMutability": "payable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "investments",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "id",
-          "type": "uint256"
-        },
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "pkg",
-          "type": "uint8"
-        },
-        {
-          "internalType": "uint256",
-          "name": "amount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "profit",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "startTime",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "unlockTime",
-          "type": "uint256"
-        },
-        {
-          "internalType": "bool",
-          "name": "withdrawn",
-          "type": "bool"
-        },
-        {
-          "internalType": "address",
-          "name": "referrer",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "isParticipant",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "owner",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_amount",
-          "type": "uint256"
-        }
-      ],
-      "name": "ownerWithdraw",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "ownerWithdrawAll",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "",
-          "type": "uint8"
-        }
-      ],
-      "name": "packageGoal",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "",
-          "type": "uint8"
-        }
-      ],
-      "name": "packageRaised",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "",
-          "type": "uint8"
-        }
-      ],
-      "name": "packages",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "duration",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "profitRate",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "referralRate",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "paused",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_startTime",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_endTime",
-          "type": "uint256"
-        }
-      ],
-      "name": "setCrowdfundingTime",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_newWallet",
-          "type": "address"
-        }
-      ],
-      "name": "setFoundationWallet",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "_pkg",
-          "type": "uint8"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_goal",
-          "type": "uint256"
-        }
-      ],
-      "name": "setPackageGoal",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType[]",
-          "name": "_pkgs",
-          "type": "uint8[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "_goals",
-          "type": "uint256[]"
-        }
-      ],
-      "name": "setPackageGoals",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "bool",
-          "name": "_paused",
-          "type": "bool"
-        }
-      ],
-      "name": "setPaused",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalInvestedBNB",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalPaidPrincipal",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalPaidProfit",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalReferralPaid",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalSentToFoundation",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "totalUsers",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "_newOwner",
-          "type": "address"
-        }
-      ],
-      "name": "transferOwnership",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "enum WealthFundTestnet.PackageType",
-          "name": "_pkg",
-          "type": "uint8"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_duration",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_profitRate",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_referralRate",
-          "type": "uint256"
-        }
-      ],
-      "name": "updatePackage",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "userStats",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "exists",
-          "type": "bool"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalInvested",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalPrincipalReturned",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalProfitEarned",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalReferralEarnings",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "referralCount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "investmentCount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "activeInvestments",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_investmentId",
-          "type": "uint256"
-        }
-      ],
-      "name": "withdraw",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "withdrawAll",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "stateMutability": "payable",
-      "type": "receive"
-    }
-
+const CONTRACT_ABI = [
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_foundationWallet",
+				"type": "address"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "funder",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "ContractFunded",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "startTime",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "endTime",
+				"type": "uint256"
+			}
+		],
+		"name": "CrowdfundingTimeSet",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "oldWallet",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "newWallet",
+				"type": "address"
+			}
+		],
+		"name": "FoundationWalletChanged",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "from",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "FundsSentToFoundation",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "pkg",
+				"type": "uint8"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "profit",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "unlockTime",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "referrer",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "referralAmount",
+				"type": "uint256"
+			}
+		],
+		"name": "Invested",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "OwnerWithdrawn",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "previousOwner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "OwnershipTransferred",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "pkg",
+				"type": "uint8"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "goal",
+				"type": "uint256"
+			}
+		],
+		"name": "PackageGoalSet",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "bool",
+				"name": "paused",
+				"type": "bool"
+			}
+		],
+		"name": "PauseStateChanged",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "referrer",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "referee",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "pkg",
+				"type": "uint8"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "ReferralPaid",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "investmentId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "principal",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "profit",
+				"type": "uint256"
+			}
+		],
+		"name": "Withdrawn",
+		"type": "event"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "fallback"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "_pkg",
+				"type": "uint8"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_amount",
+				"type": "uint256"
+			}
+		],
+		"name": "calculateProfit",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "profit",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalReturn",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "crowdfundingEndTime",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "crowdfundingStartTime",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "foundationWallet",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "fundContract",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "getActiveAmount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "total",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getAllPackageCrowdfunding",
+		"outputs": [
+			{
+				"internalType": "uint256[4]",
+				"name": "goals",
+				"type": "uint256[4]"
+			},
+			{
+				"internalType": "uint256[4]",
+				"name": "raised",
+				"type": "uint256[4]"
+			},
+			{
+				"internalType": "uint256[4]",
+				"name": "progressBps",
+				"type": "uint256[4]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getAllPackages",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "uint256",
+						"name": "duration",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "profitRate",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "referralRate",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct WealthFundTestnet.PackageInfo[4]",
+				"name": "",
+				"type": "tuple[4]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getContractBalance",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getCrowdfundingInfo",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "totalGoal",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "startTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "endTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalRaised",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "progressBps",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getGlobalStats",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "_totalInvestedBNB",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_totalPaidProfit",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_totalPaidPrincipal",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_totalReferralPaid",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_totalSentToFoundation",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_totalUsers",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_contractBalance",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "_paused",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "getMaturedAmount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "total",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "getMaturedInvestmentIds",
+		"outputs": [
+			{
+				"internalType": "uint256[]",
+				"name": "ids",
+				"type": "uint256[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "_pkg",
+				"type": "uint8"
+			}
+		],
+		"name": "getPackageCrowdfunding",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "goal",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "raised",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "progressBps",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "_pkg",
+				"type": "uint8"
+			}
+		],
+		"name": "getPackageInfo",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "duration",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "profitRate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "referralRate",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "getUserInvestmentCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "getUserInvestments",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "uint256",
+						"name": "id",
+						"type": "uint256"
+					},
+					{
+						"internalType": "enum WealthFundTestnet.PackageType",
+						"name": "pkg",
+						"type": "uint8"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "profit",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "startTime",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "unlockTime",
+						"type": "uint256"
+					},
+					{
+						"internalType": "bool",
+						"name": "withdrawn",
+						"type": "bool"
+					},
+					{
+						"internalType": "address",
+						"name": "referrer",
+						"type": "address"
+					}
+				],
+				"internalType": "struct WealthFundTestnet.Investment[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_offset",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_limit",
+				"type": "uint256"
+			}
+		],
+		"name": "getUserInvestmentsPaginated",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "uint256",
+						"name": "id",
+						"type": "uint256"
+					},
+					{
+						"internalType": "enum WealthFundTestnet.PackageType",
+						"name": "pkg",
+						"type": "uint8"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "profit",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "startTime",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "unlockTime",
+						"type": "uint256"
+					},
+					{
+						"internalType": "bool",
+						"name": "withdrawn",
+						"type": "bool"
+					},
+					{
+						"internalType": "address",
+						"name": "referrer",
+						"type": "address"
+					}
+				],
+				"internalType": "struct WealthFundTestnet.Investment[]",
+				"name": "result",
+				"type": "tuple[]"
+			},
+			{
+				"internalType": "uint256",
+				"name": "total",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "getUserStats",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "bool",
+						"name": "exists",
+						"type": "bool"
+					},
+					{
+						"internalType": "uint256",
+						"name": "totalInvested",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "totalPrincipalReturned",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "totalProfitEarned",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "totalReferralEarnings",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "referralCount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "investmentCount",
+						"type": "uint256"
+					},
+					{
+						"internalType": "uint256",
+						"name": "activeInvestments",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct WealthFundTestnet.UserStats",
+				"name": "",
+				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "_pkg",
+				"type": "uint8"
+			},
+			{
+				"internalType": "address",
+				"name": "_referrer",
+				"type": "address"
+			}
+		],
+		"name": "invest",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "_pkg",
+				"type": "uint8"
+			}
+		],
+		"name": "investWithoutReferrer",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "investments",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "id",
+				"type": "uint256"
+			},
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "pkg",
+				"type": "uint8"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "profit",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "startTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "unlockTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "withdrawn",
+				"type": "bool"
+			},
+			{
+				"internalType": "address",
+				"name": "referrer",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "isParticipant",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_amount",
+				"type": "uint256"
+			}
+		],
+		"name": "ownerWithdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "ownerWithdrawAll",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"name": "packageGoal",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"name": "packageRaised",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"name": "packages",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "duration",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "profitRate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "referralRate",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "paused",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_startTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_endTime",
+				"type": "uint256"
+			}
+		],
+		"name": "setCrowdfundingTime",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_newWallet",
+				"type": "address"
+			}
+		],
+		"name": "setFoundationWallet",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "_pkg",
+				"type": "uint8"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_goal",
+				"type": "uint256"
+			}
+		],
+		"name": "setPackageGoal",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType[]",
+				"name": "_pkgs",
+				"type": "uint8[]"
+			},
+			{
+				"internalType": "uint256[]",
+				"name": "_goals",
+				"type": "uint256[]"
+			}
+		],
+		"name": "setPackageGoals",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bool",
+				"name": "_paused",
+				"type": "bool"
+			}
+		],
+		"name": "setPaused",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalInvestedBNB",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalPaidPrincipal",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalPaidProfit",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalReferralPaid",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalSentToFoundation",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalUsers",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "enum WealthFundTestnet.PackageType",
+				"name": "_pkg",
+				"type": "uint8"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_duration",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_profitRate",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_referralRate",
+				"type": "uint256"
+			}
+		],
+		"name": "updatePackage",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "userStats",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "exists",
+				"type": "bool"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalInvested",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalPrincipalReturned",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalProfitEarned",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalReferralEarnings",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "referralCount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "investmentCount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "activeInvestments",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_investmentId",
+				"type": "uint256"
+			}
+		],
+		"name": "withdraw",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "withdrawAll",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
+	}
 ];
 </script>
 </body>
