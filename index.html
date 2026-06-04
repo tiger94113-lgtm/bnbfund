@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WealthFund - BNB 理财众筹</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0a0e17;
+  --card: #111827;
+  --card-hover: #1a2332;
+  --border: #1e293b;
+  --gold: #f0b90b;
+  --gold-dim: #8b6914;
+  --green: #10b981;
+  --red: #ef4444;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --blue: #3b82f6;
+  --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+  flex-wrap: wrap; gap: 12px;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon {
+  width: 42px; height: 42px; background: linear-gradient(135deg, var(--gold), #d4a000);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: bold; color: #000;
+}
+.logo h1 { font-size: 22px; font-weight: 700; }
+.logo span { font-size: 12px; color: var(--text-dim); display: block; }
+
+/* Wallet */
+.wallet-btn {
+  padding: 10px 20px; border-radius: 8px; border: 1px solid var(--gold);
+  background: transparent; color: var(--gold); cursor: pointer;
+  font-size: 14px; font-weight: 600; transition: all .2s;
+}
+.wallet-btn:hover { background: rgba(240,185,11,.1); }
+.wallet-btn.connected { border-color: var(--green); color: var(--green); }
+.wallet-addr { font-family: monospace; font-size: 13px; }
+
+/* Network badge */
+.network-badge {
+  display: inline-block; padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+}
+.network-badge.mainnet { background: rgba(16,185,129,.15); color: var(--green); }
+.network-badge.testnet { background: rgba(240,185,11,.15); color: var(--gold); }
+.network-badge.unknown { background: rgba(239,68,68,.15); color: var(--red); }
+
+/* Cards */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+}
+.card-title {
+  font-size: 13px; font-weight: 600; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;
+}
+
+/* Stats grid */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.stat-label { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+.stat-value { font-size: 20px; font-weight: 700; }
+.stat-value.bnb { color: var(--gold); }
+.stat-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+/* Progress bar */
+.progress-wrap { margin: 20px 0; }
+.progress-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+.progress-bar-outer {
+  height: 10px; background: var(--border); border-radius: 5px; overflow: hidden;
+}
+.progress-bar-inner {
+  height: 100%; background: linear-gradient(90deg, var(--gold), #f59e0b);
+  border-radius: 5px; transition: width 0.5s ease;
+  min-width: 2px;
+}
+
+/* Timeline */
+.timeline { margin-top: 24px; }
+.timeline-status {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot.active { background: var(--green); }
+.status-dot.upcoming { background: var(--gold); }
+.status-dot.ended { background: var(--red); }
+.status-text { font-size: 14px; }
+
+/* Package grid */
+.pkg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.pkg-card {
+  background: var(--card); border: 2px solid var(--border);
+  border-radius: var(--radius); padding: 16px; cursor: pointer;
+  transition: all .2s; text-align: center; position: relative;
+}
+.pkg-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+.pkg-card.selected { border-color: var(--gold); background: rgba(240,185,11,.05); }
+.pkg-card .pkg-name { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+.pkg-card .pkg-profit { color: var(--green); font-size: 22px; font-weight: 700; margin: 8px 0; }
+.pkg-card .pkg-ref { font-size: 12px; color: var(--text-dim); }
+.pkg-card .pkg-dur { font-size: 12px; color: var(--gold); margin-top: 4px; }
+
+/* Form */
+.form-group { margin-bottom: 12px; }
+.form-label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
+.form-input, .form-select {
+  width: 100%; padding: 10px 14px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 14px; outline: none;
+}
+.form-input:focus, .form-select:focus { border-color: var(--gold); }
+.form-input::placeholder { color: #475569; }
+.form-row { display: flex; gap: 10px; }
+.form-row > * { flex: 1; }
+
+.btn {
+  padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  cursor: pointer; border: none; transition: all .2s;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--gold), #d4a000);
+  color: #000; width: 100%;
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+.btn-outline {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+}
+.tag-active { background: rgba(240,185,11,.15); color: var(--gold); }
+.tag-done { background: rgba(16,185,129,.15); color: var(--green); }
+.tag-locked { background: rgba(100,116,139,.15); color: var(--text-dim); }
+
+/* Section */
+.section { margin-bottom: 24px; }
+.section-title {
+  font-size: 18px; font-weight: 700; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Empty state */
+.empty { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+.empty-icon { font-size: 40px; margin-bottom: 8px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; right: 20px; padding: 12px 24px;
+  border-radius: 8px; font-size: 14px; font-weight: 600; z-index: 1000;
+  animation: slideUp 0.3s ease;
+}
+.toast.success { background: var(--green); color: #fff; }
+.toast.error { background: var(--red); color: #fff; }
+.toast.info { background: var(--blue); color: #fff; }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Banner Carousel */
+.carousel {
+  position: relative; border-radius: var(--radius); overflow: hidden;
+  margin-bottom: 20px; height: 220px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.4);
+}
+.carousel-track {
+  display: flex; height: 100%; transition: transform .5s cubic-bezier(.4,0,.2,1);
+}
+.carousel-slide {
+  min-width: 100%; height: 100%; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px 40px; overflow: hidden;
+}
+.carousel-slide::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+}
+.slide-1::before {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+}
+.slide-2::before {
+  background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 40%, #462276 100%);
+}
+.slide-3::before {
+  background: linear-gradient(135deg, #0a2e1a 0%, #1b4e2d 40%, #227646 100%);
+}
+.carousel-content { position: relative; z-index: 1; text-align: center; width: 100%; }
+.carousel-content h2 { font-size: 26px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
+.carousel-content p { font-size: 14px; color: var(--text-dim); margin-bottom: 14px; max-width: 400px; margin-left: auto; margin-right: auto; }
+.carousel-content .slide-badge {
+  display: inline-block; padding: 5px 16px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+}
+.slide-1 .slide-badge { background: rgba(240,185,11,.2); color: var(--gold); }
+.slide-2 .slide-badge { background: rgba(168,85,247,.2); color: #c084fc; }
+.slide-3 .slide-badge { background: rgba(16,185,129,.2); color: var(--green); }
+
+/* Decorative shapes */
+.carousel-slide::after {
+  content: ''; position: absolute; border-radius: 50%; opacity: .08; z-index: 0;
+}
+.slide-1::after { width: 300px; height: 300px; background: var(--gold); top: -80px; right: -60px; }
+.slide-2::after { width: 250px; height: 250px; background: #a855f7; bottom: -60px; left: -40px; }
+.slide-3::after { width: 280px; height: 280px; background: var(--green); top: -50px; left: 50%; transform: translateX(-50%); }
+
+/* Nav dots */
+.carousel-dots {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 2;
+}
+.carousel-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255,255,255,.3); cursor: pointer; transition: all .3s; border: none;
+}
+.carousel-dot.active { background: var(--gold); width: 24px; border-radius: 4px; }
+
+/* Nav arrows */
+.carousel-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,.1); backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,.15); color: #fff;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; transition: all .2s;
+}
+.carousel-arrow:hover { background: rgba(255,255,255,.2); }
+.carousel-arrow.prev { left: 12px; }
+.carousel-arrow.next { right: 12px; }
+
+/* Mobile */
+@media (max-width: 600px) {
+  .header { flex-direction: column; align-items: flex-start; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .pkg-grid { grid-template-columns: 1fr 1fr; }
+  .form-row { flex-direction: column; }
+  .carousel { height: 180px; }
+  .carousel-content h2 { font-size: 20px; }
+  .carousel-content p { font-size: 12px; }
+  .carousel-slide { padding: 24px 20px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ========== HEADER ========== -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">W</div>
+      <div>
+        <h1>WealthFund</h1>
+        <span>BNB 理财众筹平台</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="networkBadge" class="network-badge unknown">未连接</span>
+      <button id="walletBtn" class="wallet-btn" onclick="connectWallet()">
+        连接钱包
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== BANNER CAROUSEL ========== -->
+  <div class="carousel" id="carousel">
+    <div class="carousel-track" id="carouselTrack">
+      <div class="carousel-slide slide-1">
+        <div class="carousel-content">
+          <h2>WealthFund 理财众筹</h2>
+          <p>BSC 链上安全透明理财，推荐即获奖励，收益实时到账</p>
+          <span class="slide-badge">BNB 理财 · 安全可信</span>
+        </div>
+      </div>
+      <div class="carousel-slide slide-2">
+        <div class="carousel-content">
+          <h2>4 档灵活理财包</h2>
+          <p>5% ~ 100% 收益率，短周期高回报，满足不同风险偏好</p>
+          <span class="slide-badge">5% - 100% · 灵活选择</span>
+        </div>
+      </div>
+      <div class="carousel-slide slide-3">
+        <div class="carousel-content">
+          <h2>推荐奖励秒到账</h2>
+          <p>1 级推荐 2%~8% 即时分发，分享越多收益越多</p>
+          <span class="slide-badge">2% - 8% · 即时到账</span>
+        </div>
+      </div>
+    </div>
+    <button class="carousel-arrow prev" onclick="carouselPrev()">&#8249;</button>
+    <button class="carousel-arrow next" onclick="carouselNext()">&#8250;</button>
+    <div class="carousel-dots" id="carouselDots">
+      <button class="carousel-dot active" onclick="carouselGo(0)"></button>
+      <button class="carousel-dot" onclick="carouselGo(1)"></button>
+      <button class="carousel-dot" onclick="carouselGo(2)"></button>
+    </div>
+  </div>
+
+  <!-- ========== STATS ========== -->
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card">
+      <div class="stat-label">总众筹进度</div>
+      <div class="stat-value bnb" id="statProgress">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">已筹集</div>
+      <div class="stat-value bnb" id="statRaised">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">总目标</div>
+      <div class="stat-value" id="statGoal">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">参与人数</div>
+      <div class="stat-value" id="statUsers">--</div>
+    </div>
+  </div>
+
+  <!-- ========== PER-PACKAGE PROGRESS ========== -->
+  <div class="card" id="pkgProgressCard">
+    <div class="card-title">📊 各理财包众筹进度</div>
+    <div id="pkgProgressList"></div>
+  </div>
+
+  <!-- ========== PROGRESS ========== -->
+  <div class="card">
+    <div class="progress-header">
+      <span>众筹进度</span>
+      <span id="progressText">0%</span>
+    </div>
+    <div class="progress-bar-outer">
+      <div class="progress-bar-inner" id="progressBar" style="width:0%"></div>
+    </div>
+    <div class="timeline">
+      <div class="timeline-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="statusText">等待配置</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);">
+        <span id="timeStart">开始: --</span>
+        <span id="timeEnd">结束: --</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== ADMIN PANEL ========== -->
+  <div class="card" id="adminPanel" style="display:none;">
+    <div class="card-title">⚙️ 管理员面板</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">开始时间</label>
+        <input type="datetime-local" class="form-input" id="cfgStart">
+      </div>
+      <div class="form-group">
+        <label class="form-label">结束时间</label>
+        <input type="datetime-local" class="form-input" id="cfgEnd">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="setCrowdfundingTime()" style="margin-top:8px;margin-bottom:16px;">
+      保存众筹时间
+    </button>
+    <div style="border-top:1px solid var(--border);padding-top:14px;">
+      <div class="card-title" style="margin-bottom:10px;">各理财包众筹目标 (BNB)</div>
+      <div class="form-row" style="flex-wrap:wrap;">
+        <div class="form-group" style="min-width:140px;">
+          <label class="form-label">3分钟 (5%)</label>
+          <input type="number" class="form-input" id="cfgGoal1" placeholder="0 = 无限制" step="0.01" min="0">
+        </div>
+        <div class="form-group" style="min-width:140px;">
+          <label class="form-label">5分钟 (14%)</label>
+          <input type="number" class="form-input" id="cfgGoal2" placeholder="0 = 无限制" step="0.01" min="0">
+        </div>
+        <div class="form-group" style="min-width:140px;">
+          <label class="form-label">15分钟 (40%)</label>
+          <input type="number" class="form-input" id="cfgGoal3" placeholder="0 = 无限制" step="0.01" min="0">
+        </div>
+        <div class="form-group" style="min-width:140px;">
+          <label class="form-label">30分钟 (100%)</label>
+          <input type="number" class="form-input" id="cfgGoal4" placeholder="0 = 无限制" step="0.01" min="0">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="setPackageGoals()">
+        保存各包目标
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== INVEST PANEL ========== -->
+  <div class="card">
+    <div class="card-title">💰 选择理财包投资</div>
+    <div class="pkg-grid" id="pkgGrid">
+      <!-- JS populated -->
+    </div>
+    <div style="margin-top:16px;">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">投资金额 (BNB)</label>
+          <input type="number" class="form-input" id="investAmount" placeholder="0.01" step="0.001" min="0.001">
+        </div>
+        <div class="form-group">
+          <label class="form-label">推荐人地址 (可选)</label>
+          <input type="text" class="form-input" id="referrerAddr" placeholder="0x... 或留空">
+        </div>
+      </div>
+      <div id="investPreview" style="font-size:13px;color:var(--text-dim);margin:8px 0;display:none;"></div>
+      <button class="btn btn-primary" id="investBtn" onclick="invest()" disabled>
+        连接钱包以投资
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== MY INVESTMENTS ========== -->
+  <div class="section">
+    <div class="section-title">📋 我的投资</div>
+    <div class="card" id="investmentsCard">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>理财包</th>
+              <th>金额</th>
+              <th>收益</th>
+              <th>到期时间</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="investmentsBody">
+            <tr><td colspan="7" class="empty">请先连接钱包</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="btn btn-outline" id="withdrawAllBtn" onclick="withdrawAll()" style="margin-top:12px;display:none;">
+        一键提取所有到期投资
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== GLOBAL STATS ========== -->
+  <div class="section">
+    <div class="section-title">📊 平台统计</div>
+    <div class="stats-grid" id="globalStats">
+      <div class="stat-card"><div class="stat-label">累计投资</div><div class="stat-value bnb" id="gsInvested">--</div></div>
+      <div class="stat-card"><div class="stat-label">已付收益</div><div class="stat-value bnb" id="gsProfit">--</div></div>
+      <div class="stat-card"><div class="stat-label">推荐支出</div><div class="stat-value bnb" id="gsReferral">--</div></div>
+      <div class="stat-card"><div class="stat-label">合约余额</div><div class="stat-value bnb" id="gsBalance">--</div></div>
+    </div>
+  </div>
+
+  <div style="text-align:center;padding:20px;color:var(--text-dim);font-size:12px;">
+    WealthFund DApp · BSC 链上理财众筹 · 
+    <span id="footerNetwork">未连接</span>
+  </div>
+
+</div>
+
+<!-- ========== TOAST ========== -->
+<div id="toast" class="toast" style="display:none;"></div>
+
+<script>
+// ==================== CAROUSEL ====================
+let carouselIdx = 0;
+let carouselTimer = null;
+
+function carouselGo(idx) {
+  carouselIdx = idx;
+  document.getElementById('carouselTrack').style.transform = `translateX(-${idx * 100}%)`;
+  document.querySelectorAll('.carousel-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+  });
+  resetCarouselTimer();
+}
+
+function carouselNext() { carouselGo((carouselIdx + 1) % 3); }
+function carouselPrev() { carouselGo((carouselIdx + 2) % 3); }
+
+function resetCarouselTimer() {
+  clearInterval(carouselTimer);
+  carouselTimer = setInterval(() => carouselNext(), 5000);
+}
+
+// Touch / swipe support
+(function() {
+  const el = document.getElementById('carousel');
+  let startX = 0, startY = 0, dragging = false;
+  el.addEventListener('touchstart', e => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; dragging = true; }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if (!dragging) return; dragging = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+      dx < 0 ? carouselNext() : carouselPrev();
+    }
+  }, { passive: true });
+})();
+
+// Start auto-play
+resetCarouselTimer();
+
+// ==================== CONFIG ====================
+const CONTRACTS = {
+  97: '0x_YOUR_TESTNET_CONTRACT',  // BSC Testnet - 部署后替换
+  56: '0x_YOUR_MAINNET_CONTRACT',  // BSC Mainnet - 部署后替换
+};
+const CHAIN_NAMES = { 56: 'BSC 主网', 97: 'BSC 测试网' };
+const PACKAGE_NAMES = ['', '3分钟 (5%)', '5分钟 (14%)', '15分钟 (40%)', '30分钟 (100%)'];
+const PACKAGE_PROFITS = ['', '5%', '14%', '40%', '100%'];
+
+let signer, contract, account, chainId, selectedPkg = 1; // default THREE_MIN
+
+// ==================== WALLET ====================
+async function connectWallet() {
+  if (!window.ethereum) {
+    showToast('请安装 MetaMask 钱包', 'error');
+    return;
+  }
+  try {
+    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+    account = accounts[0];
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    signer = await provider.getSigner();
+    chainId = (await provider.getNetwork()).chainId;
+    setupContract(provider);
+    updateUI();
+    loadAll();
+    showToast('钱包已连接', 'success');
+  } catch (e) {
+    showToast('连接失败: ' + e.message, 'error');
+  }
+}
+
+function setupContract(provider) {
+  const addr = CONTRACTS[Number(chainId)];
+  if (!addr) {
+    showToast('当前网络不支持，请切换到 BSC', 'error');
+    return;
+  }
+  contract = new ethers.Contract(addr, CONTRACT_ABI, signer || provider);
+}
+
+async function switchNetwork(targetChainId) {
+  try {
+    await ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: '0x' + targetChainId.toString(16) }]
+    });
+  } catch (e) {
+    if (e.code === 4902) {
+      // add BSC testnet
+      await ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: '0x61',
+          chainName: 'BSC Testnet',
+          nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+          rpcUrls: ['https://data-seed-prebsc-1-s1.binance.org:8545/'],
+          blockExplorerUrls: ['https://testnet.bscscan.com/']
+        }]
+      });
+    }
+  }
+}
+
+// ==================== UI UPDATE ====================
+function updateUI() {
+  const btn = document.getElementById('walletBtn');
+  const badge = document.getElementById('networkBadge');
+  const isConnected = !!account;
+
+  btn.textContent = isConnected
+    ? account.slice(0,6) + '...' + account.slice(-4)
+    : '连接钱包';
+  btn.className = 'wallet-btn' + (isConnected ? ' connected' : '');
+
+  if (isConnected && chainId) {
+    if (chainId == 56n) { badge.className = 'network-badge mainnet'; badge.textContent = 'BSC 主网'; }
+    else if (chainId == 97n) { badge.className = 'network-badge testnet'; badge.textContent = 'BSC 测试网'; }
+    else { badge.className = 'network-badge unknown'; badge.textContent = '未知网络 (Chain ' + chainId + ')'; }
+    document.getElementById('footerNetwork').textContent = CHAIN_NAMES[Number(chainId)] || 'Chain ' + chainId;
+  } else {
+    badge.className = 'network-badge unknown'; badge.textContent = '未连接';
+  }
+
+  document.getElementById('investBtn').disabled = !isConnected;
+  document.getElementById('investBtn').textContent = isConnected ? '确认投资' : '连接钱包以投资';
+}
+
+// ==================== LOAD DATA ====================
+async function loadAll() {
+  if (!contract) return;
+  try {
+    await Promise.all([
+      loadCrowdfunding(),
+      loadPackages(),
+      loadGlobalStats(),
+      loadMyInvestments(),
+      checkOwner(),
+    ]);
+  } catch (e) {
+    console.error('Load error:', e);
+  }
+}
+
+async function loadCrowdfunding() {
+  try {
+    const info = await contract.getCrowdfundingInfo();
+    const totalGoal = Number(ethers.formatEther(info.totalGoal));
+    const totalRaised = Number(ethers.formatEther(info.totalRaised));
+    const progressBps = Number(info.progressBps);
+    const startTime = Number(info.startTime);
+    const endTime = Number(info.endTime);
+    const now = Math.floor(Date.now() / 1000);
+
+    document.getElementById('statGoal').textContent = totalGoal > 0 ? totalGoal.toFixed(2) + ' BNB' : '未设置';
+    document.getElementById('statRaised').textContent = totalRaised.toFixed(4) + ' BNB';
+    document.getElementById('statProgress').textContent = totalGoal > 0 ? (progressBps / 100).toFixed(1) + '%' : '--';
+    document.getElementById('progressText').textContent = totalGoal > 0 ? (progressBps / 100).toFixed(1) + '%' : '0%';
+    document.getElementById('progressBar').style.width = totalGoal > 0 ? Math.min(progressBps / 100, 100) + '%' : '0%';
+
+    // Timeline
+    const dot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const timeStart = document.getElementById('timeStart');
+    const timeEnd = document.getElementById('timeEnd');
+
+    if (startTime === 0 && endTime === 0) {
+      dot.className = 'status-dot';
+      statusText.textContent = '众筹尚未配置';
+      timeStart.textContent = '开始: --';
+      timeEnd.textContent = '结束: --';
+    } else {
+      timeStart.textContent = '开始: ' + new Date(startTime * 1000).toLocaleString('zh-CN');
+      timeEnd.textContent = '结束: ' + new Date(endTime * 1000).toLocaleString('zh-CN');
+      if (now < startTime) {
+        dot.className = 'status-dot upcoming';
+        statusText.textContent = '即将开始';
+      } else if (now > endTime) {
+        dot.className = 'status-dot ended';
+        statusText.textContent = '已结束';
+      } else {
+        dot.className = 'status-dot active';
+        statusText.textContent = '进行中';
+      }
+    }
+
+    // Load per-package crowdfunding
+    await loadPackageCrowdfunding();
+  } catch (e) { console.error('loadCrowdfunding:', e); }
+}
+
+async function loadPackageCrowdfunding() {
+  try {
+    const data = await contract.getAllPackageCrowdfunding();
+    const goals = data.goals;
+    const raised = data.raised;
+    const bps = data.progressBps;
+    const container = document.getElementById('pkgProgressList');
+    const pkgNames = ['3分钟 (5%)', '5分钟 (14%)', '15分钟 (40%)', '30分钟 (100%)'];
+    const pkgColors = ['#f0b90b', '#a855f7', '#3b82f6', '#10b981'];
+    let html = '';
+    for (let i = 0; i < 4; i++) {
+      const goal = Number(ethers.formatEther(goals[i]));
+      const raisedVal = Number(ethers.formatEther(raised[i]));
+      const progress = Number(bps[i]);
+      const pct = goal > 0 ? (progress / 100).toFixed(1) : 0;
+      const barW = goal > 0 ? Math.min(progress / 100, 100) : 0;
+      html += `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:14px;font-weight:600;">${pkgNames[i]}</span>
+            <span style="font-size:13px;color:var(--text-dim);">${raisedVal.toFixed(4)} / ${goal > 0 ? goal.toFixed(2) : '∞'} BNB</span>
+          </div>
+          <div class="progress-bar-outer" style="height:8px;">
+            <div style="height:100%;border-radius:5px;transition:width .5s ease;min-width:2px;width:${barW}%;background:${pkgColors[i]};"></div>
+          </div>
+          <div style="text-align:right;font-size:11px;color:var(--text-dim);margin-top:2px;">${goal > 0 ? pct + '%' : '无目标限制'}</div>
+        </div>
+      `;
+    }
+    container.innerHTML = html;
+  } catch (e) { console.error('loadPackageCrowdfunding:', e); }
+}
+
+async function loadPackages() {
+  try {
+    const pkgs = await contract.getAllPackages();
+    const container = document.getElementById('pkgGrid');
+    container.innerHTML = '';
+    pkgs.forEach((pkg, i) => {
+      if (i >= 4) return;
+      const pkgType = i + 1;
+      // Convert duration — for testnet: seconds; for mainnet: days
+      let durationText;
+      const durSec = Number(pkg.duration);
+      if (durSec < 3600) durationText = (durSec / 60) + ' 分钟';
+      else if (durSec < 86400) durationText = (durSec / 3600).toFixed(1) + ' 小时';
+      else durationText = (durSec / 86400) + ' 天';
+
+      const profitPct = (Number(pkg.profitRate) / 100).toFixed(1);
+      const refPct = (Number(pkg.referralRate) / 100).toFixed(1);
+
+      const card = document.createElement('div');
+      card.className = 'pkg-card' + (selectedPkg === pkgType ? ' selected' : '');
+      card.onclick = () => { selectedPkg = pkgType; loadPackages(); updateInvestPreview(); };
+      card.innerHTML = `
+        <div class="pkg-name">${PACKAGE_NAMES[pkgType]}</div>
+        <div class="pkg-profit">+${profitPct}%</div>
+        <div class="pkg-dur">锁仓 ${durationText}</div>
+        <div class="pkg-ref">推荐奖 ${refPct}%</div>
+      `;
+      container.appendChild(card);
+    });
+  } catch (e) { console.error('loadPackages:', e); }
+}
+
+async function loadGlobalStats() {
+  try {
+    const stats = await contract.getGlobalStats();
+    document.getElementById('gsInvested').textContent = Number(ethers.formatEther(stats._totalInvestedBNB)).toFixed(4) + ' BNB';
+    document.getElementById('gsProfit').textContent = Number(ethers.formatEther(stats._totalPaidProfit)).toFixed(4) + ' BNB';
+    document.getElementById('gsReferral').textContent = Number(ethers.formatEther(stats._totalReferralPaid)).toFixed(4) + ' BNB';
+    document.getElementById('gsBalance').textContent = Number(ethers.formatEther(stats._contractBalance)).toFixed(4) + ' BNB';
+    document.getElementById('statUsers').textContent = Number(stats._totalUsers);
+  } catch (e) { console.error('loadGlobalStats:', e); }
+}
+
+async function loadMyInvestments() {
+  const tbody = document.getElementById('investmentsBody');
+  const withdrawAllBtn = document.getElementById('withdrawAllBtn');
+  if (!account || !contract) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">请先连接钱包</td></tr>';
+    withdrawAllBtn.style.display = 'none';
+    return;
+  }
+  try {
+    const count = await contract.getUserInvestmentCount(account);
+    if (Number(count) === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无投资记录</td></tr>';
+      withdrawAllBtn.style.display = 'none';
+      return;
+    }
+    const invs = await contract.getUserInvestments(account);
+    let hasMatured = false;
+    tbody.innerHTML = '';
+    invs.forEach((inv, idx) => {
+      const amount = Number(ethers.formatEther(inv.amount));
+      const profit = Number(ethers.formatEther(inv.profit));
+      const unlock = Number(inv.unlockTime);
+      const now = Math.floor(Date.now() / 1000);
+      const locked = now < unlock;
+      const done = inv.withdrawn;
+      const matured = !done && !locked;
+      if (matured) hasMatured = true;
+
+      let statusHtml, tagClass;
+      if (done) { statusHtml = '已提取'; tagClass = 'tag-done'; }
+      else if (locked) { statusHtml = '锁仓中'; tagClass = 'tag-locked'; }
+      else { statusHtml = '可提取'; tagClass = 'tag-active'; }
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${idx}</td>
+          <td>${PACKAGE_NAMES[Number(inv.pkg)]}</td>
+          <td>${amount.toFixed(4)} BNB</td>
+          <td style="color:var(--green)">+${profit.toFixed(4)} BNB</td>
+          <td>${new Date(unlock * 1000).toLocaleString('zh-CN')}</td>
+          <td><span class="tag ${tagClass}">${statusHtml}</span></td>
+          <td>
+            ${matured ? `<button class="btn btn-sm btn-primary" onclick="withdrawOne(${idx})">提取</button>` : '--'}
+          </td>
+        </tr>
+      `;
+    });
+    withdrawAllBtn.style.display = hasMatured ? 'inline-block' : 'none';
+  } catch (e) { console.error('loadMyInvestments:', e); }
+}
+
+async function checkOwner() {
+  if (!contract || !account) { document.getElementById('adminPanel').style.display = 'none'; return; }
+  try {
+    const owner = await contract.owner();
+    document.getElementById('adminPanel').style.display =
+      owner.toLowerCase() === account.toLowerCase() ? 'block' : 'none';
+  } catch (e) { document.getElementById('adminPanel').style.display = 'none'; }
+}
+
+// ==================== INVEST ====================
+function updateInvestPreview() {
+  const amountVal = document.getElementById('investAmount').value;
+  if (!amountVal || amountVal <= 0) {
+    document.getElementById('investPreview').style.display = 'none';
+    return;
+  }
+  const profitPct = [0, 5, 14, 40, 100][selectedPkg];
+  const refPct = [0, 2, 3, 5, 8][selectedPkg];
+  document.getElementById('investPreview').style.display = 'block';
+  document.getElementById('investPreview').innerHTML =
+    `预估收益: <b style="color:var(--green)">+${(amountVal * profitPct / 100).toFixed(4)} BNB</b> 
+     | 推荐奖: <b style="color:var(--gold)">${refPct}%</b>`;
+}
+
+document.getElementById('investAmount').addEventListener('input', updateInvestPreview);
+
+async function invest() {
+  if (!contract || !signer) return showToast('请先连接钱包', 'error');
+  const amount = document.getElementById('investAmount').value;
+  const ref = document.getElementById('referrerAddr').value.trim();
+  if (!amount || Number(amount) <= 0) return showToast('请输入投资金额', 'error');
+
+  try {
+    const wei = ethers.parseEther(amount);
+    const pkgType = selectedPkg;
+    let tx;
+    if (ref && ethers.isAddress(ref)) {
+      tx = await contract.invest(pkgType, ref, { value: wei });
+    } else {
+      tx = await contract.investWithoutReferrer(pkgType, { value: wei });
+    }
+    showToast('交易已提交，等待确认...', 'info');
+    await tx.wait();
+    showToast('投资成功! 🎉', 'success');
+    document.getElementById('investAmount').value = '';
+    document.getElementById('referrerAddr').value = '';
+    loadAll();
+  } catch (e) {
+    const msg = e.reason || e.message || '投资失败';
+    showToast(msg, 'error');
+  }
+}
+
+async function withdrawOne(id) {
+  if (!contract) return;
+  try {
+    const tx = await contract.withdraw(id);
+    showToast('提取中...', 'info');
+    await tx.wait();
+    showToast('提取成功! 🎉', 'success');
+    loadAll();
+  } catch (e) {
+    showToast(e.reason || e.message || '提取失败', 'error');
+  }
+}
+
+async function withdrawAll() {
+  if (!contract) return;
+  try {
+    const tx = await contract.withdrawAll();
+    showToast('批量提取中...', 'info');
+    await tx.wait();
+    showToast('全部提取成功! 🎉', 'success');
+    loadAll();
+  } catch (e) {
+    showToast(e.reason || e.message || '提取失败', 'error');
+  }
+}
+
+// ==================== ADMIN ====================
+async function setCrowdfundingTime() {
+  if (!contract || !signer) return showToast('请先连接钱包', 'error');
+  const start = document.getElementById('cfgStart').value;
+  const end = document.getElementById('cfgEnd').value;
+  if (!start || !end) return showToast('请填写开始和结束时间', 'error');
+
+  try {
+    const startTs = Math.floor(new Date(start).getTime() / 1000);
+    const endTs = Math.floor(new Date(end).getTime() / 1000);
+    if (endTs <= startTs) return showToast('结束时间必须晚于开始时间', 'error');
+
+    const tx = await contract.setCrowdfundingTime(startTs, endTs);
+    showToast('配置提交中...', 'info');
+    await tx.wait();
+    showToast('众筹时间已保存!', 'success');
+    loadAll();
+  } catch (e) {
+    showToast(e.reason || e.message || '配置失败', 'error');
+  }
+}
+
+async function setPackageGoals() {
+  if (!contract || !signer) return showToast('请先连接钱包', 'error');
+  const goals = [
+    document.getElementById('cfgGoal1').value,
+    document.getElementById('cfgGoal2').value,
+    document.getElementById('cfgGoal3').value,
+    document.getElementById('cfgGoal4').value,
+  ];
+  // 至少填了一个目标
+  if (goals.every(g => !g)) return showToast('请至少填写一个理财包目标', 'error');
+
+  try {
+    const pkgs = [1, 2, 3, 4]; // PackageType enum values
+    const goalWeis = goals.map(g => g ? ethers.parseEther(g) : 0n);
+    const tx = await contract.setPackageGoals(pkgs, goalWeis);
+    showToast('目标配置提交中...', 'info');
+    await tx.wait();
+    showToast('理财包目标已保存!', 'success');
+    loadAll();
+  } catch (e) {
+    showToast(e.reason || e.message || '配置失败', 'error');
+  }
+}
+
+// ==================== EVENTS ====================
+if (window.ethereum) {
+  ethereum.on('accountsChanged', (accounts) => {
+    account = accounts[0] || null;
+    if (!account) { signer = null; contract = null; }
+    updateUI();
+    loadAll();
+  });
+  ethereum.on('chainChanged', () => location.reload());
+}
+
+// ==================== HELPERS ====================
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type;
+  el.style.display = 'block';
+  clearTimeout(el._timeout);
+  el._timeout = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+// ==================== INIT ====================
+(async function init() {
+  if (window.ethereum) {
+    try {
+      const accounts = await ethereum.request({ method: 'eth_accounts' });
+      if (accounts.length > 0) {
+        account = accounts[0];
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+        chainId = (await provider.getNetwork()).chainId;
+        setupContract(provider);
+      }
+    } catch (e) { /* silent */ }
+  }
+  updateUI();
+  if (contract) loadAll();
+})();
+
+// ==================== ABI ====================
+const CONTRACT_ABI = [{"inputs":[{"internalType":"address","name":"_foundationWallet","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"funder","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"ContractFunded","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"startTime","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"endTime","type":"uint256"}],"name":"CrowdfundingTimeSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"oldWallet","type":"address"},{"indexed":true,"internalType":"address","name":"newWallet","type":"address"}],"name":"FoundationWalletChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"FundsSentToFoundation","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"user","type":"address"},{"indexed":true,"internalType":"enum WealthFundTestnet.PackageType","name":"pkg","type":"uint8"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"profit","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"unlockTime","type":"uint256"},{"indexed":true,"internalType":"address","name":"referrer","type":"address"},{"indexed":false,"internalType":"uint256","name":"referralAmount","type":"uint256"}],"name":"Invested","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"OwnerWithdrawn","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"enum WealthFundTestnet.PackageType","name":"pkg","type":"uint8"},{"indexed":false,"internalType":"uint256","name":"goal","type":"uint256"}],"name":"PackageGoalSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"bool","name":"paused","type":"bool"}],"name":"PauseStateChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"referrer","type":"address"},{"indexed":true,"internalType":"address","name":"referee","type":"address"},{"indexed":true,"internalType":"enum WealthFundTestnet.PackageType","name":"pkg","type":"uint8"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"ReferralPaid","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"user","type":"address"},{"indexed":true,"internalType":"uint256","name":"investmentId","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"principal","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"profit","type":"uint256"}],"name":"Withdrawn","type":"event"},{"stateMutability":"payable","type":"fallback"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"_pkg","type":"uint8"},{"internalType":"uint256","name":"_amount","type":"uint256"}],"name":"calculateProfit","outputs":[{"internalType":"uint256","name":"profit","type":"uint256"},{"internalType":"uint256","name":"totalReturn","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"crowdfundingEndTime","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"crowdfundingStartTime","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"foundationWallet","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"fundContract","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"address","name":"_user","type":"address"}],"name":"getActiveAmount","outputs":[{"internalType":"uint256","name":"total","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getAllPackageCrowdfunding","outputs":[{"internalType":"uint256[4]","name":"goals","type":"uint256[4]"},{"internalType":"uint256[4]","name":"raised","type":"uint256[4]"},{"internalType":"uint256[4]","name":"progressBps","type":"uint256[4]"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getAllPackages","outputs":[{"components":[{"internalType":"uint256","name":"duration","type":"uint256"},{"internalType":"uint256","name":"profitRate","type":"uint256"},{"internalType":"uint256","name":"referralRate","type":"uint256"}],"internalType":"struct WealthFundTestnet.PackageInfo[4]","name":"","type":"tuple[4]"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getContractBalance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getCrowdfundingInfo","outputs":[{"internalType":"uint256","name":"totalGoal","type":"uint256"},{"internalType":"uint256","name":"startTime","type":"uint256"},{"internalType":"uint256","name":"endTime","type":"uint256"},{"internalType":"uint256","name":"totalRaised","type":"uint256"},{"internalType":"uint256","name":"progressBps","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getGlobalStats","outputs":[{"internalType":"uint256","name":"_totalInvestedBNB","type":"uint256"},{"internalType":"uint256","name":"_totalPaidProfit","type":"uint256"},{"internalType":"uint256","name":"_totalPaidPrincipal","type":"uint256"},{"internalType":"uint256","name":"_totalReferralPaid","type":"uint256"},{"internalType":"uint256","name":"_totalSentToFoundation","type":"uint256"},{"internalType":"uint256","name":"_totalUsers","type":"uint256"},{"internalType":"uint256","name":"_contractBalance","type":"uint256"},{"internalType":"bool","name":"_paused","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"_user","type":"address"}],"name":"getMaturedAmount","outputs":[{"internalType":"uint256","name":"total","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"_user","type":"address"}],"name":"getMaturedInvestmentIds","outputs":[{"internalType":"uint256[]","name":"ids","type":"uint256[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"_pkg","type":"uint8"}],"name":"getPackageCrowdfunding","outputs":[{"internalType":"uint256","name":"goal","type":"uint256"},{"internalType":"uint256","name":"raised","type":"uint256"},{"internalType":"uint256","name":"progressBps","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"_pkg","type":"uint8"}],"name":"getPackageInfo","outputs":[{"internalType":"uint256","name":"duration","type":"uint256"},{"internalType":"uint256","name":"profitRate","type":"uint256"},{"internalType":"uint256","name":"referralRate","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"_user","type":"address"}],"name":"getUserInvestmentCount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"_user","type":"address"}],"name":"getUserInvestments","outputs":[{"components":[{"internalType":"uint256","name":"id","type":"uint256"},{"internalType":"enum WealthFundTestnet.PackageType","name":"pkg","type":"uint8"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"profit","type":"uint256"},{"internalType":"uint256","name":"startTime","type":"uint256"},{"internalType":"uint256","name":"unlockTime","type":"uint256"},{"internalType":"bool","name":"withdrawn","type":"bool"},{"internalType":"address","name":"referrer","type":"address"}],"internalType":"struct WealthFundTestnet.Investment[]","name":"","type":"tuple[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"_user","type":"address"},{"internalType":"uint256","name":"_offset","type":"uint256"},{"internalType":"uint256","name":"_limit","type":"uint256"}],"name":"getUserInvestmentsPaginated","outputs":[{"components":[{"internalType":"uint256","name":"id","type":"uint256"},{"internalType":"enum WealthFundTestnet.PackageType","name":"pkg","type":"uint8"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"profit","type":"uint256"},{"internalType":"uint256","name":"startTime","type":"uint256"},{"internalType":"uint256","name":"unlockTime","type":"uint256"},{"internalType":"bool","name":"withdrawn","type":"bool"},{"internalType":"address","name":"referrer","type":"address"}],"internalType":"struct WealthFundTestnet.Investment[]","name":"result","type":"tuple[]"},{"internalType":"uint256","name":"total","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"_user","type":"address"}],"name":"getUserStats","outputs":[{"components":[{"internalType":"bool","name":"exists","type":"bool"},{"internalType":"uint256","name":"totalInvested","type":"uint256"},{"internalType":"uint256","name":"totalPrincipalReturned","type":"uint256"},{"internalType":"uint256","name":"totalProfitEarned","type":"uint256"},{"internalType":"uint256","name":"totalReferralEarnings","type":"uint256"},{"internalType":"uint256","name":"referralCount","type":"uint256"},{"internalType":"uint256","name":"investmentCount","type":"uint256"},{"internalType":"uint256","name":"activeInvestments","type":"uint256"}],"internalType":"struct WealthFundTestnet.UserStats","name":"","type":"tuple"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"_pkg","type":"uint8"},{"internalType":"address","name":"_referrer","type":"address"}],"name":"invest","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"_pkg","type":"uint8"}],"name":"investWithoutReferrer","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"},{"internalType":"uint256","name":"","type":"uint256"}],"name":"investments","outputs":[{"internalType":"uint256","name":"id","type":"uint256"},{"internalType":"enum WealthFundTestnet.PackageType","name":"pkg","type":"uint8"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"profit","type":"uint256"},{"internalType":"uint256","name":"startTime","type":"uint256"},{"internalType":"uint256","name":"unlockTime","type":"uint256"},{"internalType":"bool","name":"withdrawn","type":"bool"},{"internalType":"address","name":"referrer","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"isParticipant","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"_amount","type":"uint256"}],"name":"ownerWithdraw","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"ownerWithdrawAll","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"","type":"uint8"}],"name":"packageGoal","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"","type":"uint8"}],"name":"packageRaised","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"","type":"uint8"}],"name":"packages","outputs":[{"internalType":"uint256","name":"duration","type":"uint256"},{"internalType":"uint256","name":"profitRate","type":"uint256"},{"internalType":"uint256","name":"referralRate","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"paused","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"_startTime","type":"uint256"},{"internalType":"uint256","name":"_endTime","type":"uint256"}],"name":"setCrowdfundingTime","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"_newWallet","type":"address"}],"name":"setFoundationWallet","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"_pkg","type":"uint8"},{"internalType":"uint256","name":"_goal","type":"uint256"}],"name":"setPackageGoal","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType[]","name":"_pkgs","type":"uint8[]"},{"internalType":"uint256[]","name":"_goals","type":"uint256[]"}],"name":"setPackageGoals","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bool","name":"_paused","type":"bool"}],"name":"setPaused","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"totalInvestedBNB","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalPaidPrincipal","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalPaidProfit","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalReferralPaid","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSentToFoundation","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalUsers","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"_newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"enum WealthFundTestnet.PackageType","name":"_pkg","type":"uint8"},{"internalType":"uint256","name":"_duration","type":"uint256"},{"internalType":"uint256","name":"_profitRate","type":"uint256"},{"internalType":"uint256","name":"_referralRate","type":"uint256"}],"name":"updatePackage","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"userStats","outputs":[{"internalType":"bool","name":"exists","type":"bool"},{"internalType":"uint256","name":"totalInvested","type":"uint256"},{"internalType":"uint256","name":"totalPrincipalReturned","type":"uint256"},{"internalType":"uint256","name":"totalProfitEarned","type":"uint256"},{"internalType":"uint256","name":"totalReferralEarnings","type":"uint256"},{"internalType":"uint256","name":"referralCount","type":"uint256"},{"internalType":"uint256","name":"investmentCount","type":"uint256"},{"internalType":"uint256","name":"activeInvestments","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"_investmentId","type":"uint256"}],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"withdrawAll","outputs":[],"stateMutability":"nonpayable","type":"function"},{"stateMutability":"payable","type":"receive"}];
+</script>
+</body>
+</html>
