@@ -964,979 +964,1336 @@ function showToast(msg, type) {
 })();
 
 // ==================== ABI ====================
-const CONTRACT_ABI = [// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
-
-/**
- * @title WealthFundTestnet - BNB 理财众筹合约 (测试网版本)
- * @dev 支持4个理财包 + 1级推荐奖励系统
- *
- * ⚠️ 测试网专用！理财周期从"天"缩短为"分钟"方便快速验证
- *
- * 资金流向：
- *   用户投资 BNB → 分两路分发：
- *     1. 推荐奖 → 秒到推荐人钱包
- *     2. 剩余资金 → 直发基金会众筹多签钱包
- *   用户到期提取 → 需要基金会回充 BNB 到合约
- *
- * 理财包 (测试网)：
- *   - 3分钟周期：收益 5%，推荐奖 2%
- *   - 5分钟周期：收益 14%，推荐奖 3%
- *   - 15分钟周期：收益 40%，推荐奖 5%
- *   - 30分钟周期：收益 100%，推荐奖 8%
- *
- * 推荐绑定：
- *   - 通过 invest() 函数直接传入上级地址
- *   - 或通过转账 BNB 时在 data 字段(16进制)填写上级钱包地址
- *   - 上级钱包地址必须是已参与的钱包地址
- *   - 未填写则为无推荐人
- *   - 推荐奖秒到上级钱包
- */
-contract WealthFundTestnet {
-    // ==================== 枚举 ====================
-
-    /**
-     * @dev 理财包类型 (测试网)
-     * NONE = 0 (无效)
-     * THREE_MIN = 1 (3分钟)
-     * FIVE_MIN = 2 (5分钟)
-     * FIFTEEN_MIN = 3 (15分钟)
-     * THIRTY_MIN = 4 (30分钟)
-     */
-    enum PackageType {
-        NONE,
-        THREE_MIN,
-        FIVE_MIN,
-        FIFTEEN_MIN,
-        THIRTY_MIN
-    }
-
-    // ==================== 结构体 ====================
-
-    /// @notice 理财包配置
-    struct PackageInfo {
-        uint256 duration;       // 锁仓时长 (秒)
-        uint256 profitRate;     // 收益率 (基点, 500 = 5%)
-        uint256 referralRate;   // 推荐奖率 (基点, 200 = 2%)
-    }
-
-    /// @notice 单笔投资记录
-    struct Investment {
-        uint256 id;             // 投资ID (用户在数组中的索引)
-        PackageType pkg;        // 理财包类型
-        uint256 amount;         // 本金 (wei)
-        uint256 profit;         // 预期收益 (wei)
-        uint256 startTime;      // 投资开始时间
-        uint256 unlockTime;     // 解锁时间
-        bool withdrawn;         // 是否已提取
-        address referrer;       // 推荐人地址
-    }
-
-    /// @notice 用户统计信息
-    struct UserStats {
-        bool exists;                    // 是否已参与
-        uint256 totalInvested;          // 累计投资
-        uint256 totalPrincipalReturned; // 累计返还本金
-        uint256 totalProfitEarned;      // 累计获得收益
-        uint256 totalReferralEarnings;  // 累计推荐收入
-        uint256 referralCount;          // 推荐人数
-        uint256 investmentCount;        // 投资笔数
-        uint256 activeInvestments;      // 进行中的投资数
-    }
-
-    // ==================== 状态变量 ====================
-
-    /// @notice 合约所有者
-    address public owner;
-
-    /// @notice 基金会众筹多签钱包地址
-    address public foundationWallet;
-
-    /// @notice 理财包配置映射
-    mapping(PackageType => PackageInfo) public packages;
-
-    /// @notice 用户统计
-    mapping(address => UserStats) public userStats;
-
-    /// @notice 用户投资列表: user => investments[]
-    mapping(address => Investment[]) public investments;
-
-    /// @notice 参与标记 (用于验证推荐人资格)
-    mapping(address => bool) public isParticipant;
-
-    /// @notice 全局统计
-    uint256 public totalInvestedBNB;        // 累计投资总额
-    uint256 public totalPaidProfit;         // 累计支付收益
-    uint256 public totalPaidPrincipal;      // 累计返还本金
-    uint256 public totalReferralPaid;       // 累计推荐支出
-    uint256 public totalSentToFoundation;   // 累计发送至基金会
-    uint256 public totalUsers;              // 总参与人数
-
-    /// @notice 紧急暂停开关
-    bool public paused;
-
-    /// @notice 众筹时间配置 (全局共享)
-    uint256 public crowdfundingStartTime;  // 众筹开始时间 (unix timestamp)
-    uint256 public crowdfundingEndTime;    // 众筹结束时间 (unix timestamp)
-
-    /// @notice 每个理财包的众筹目标金额 (wei)
-    mapping(PackageType => uint256) public packageGoal;
-
-    /// @notice 每个理财包的已筹金额 (wei)
-    mapping(PackageType => uint256) public packageRaised;
-
-    /// @notice 防重入锁
-    uint256 private _status; // 1 = unlocked, 2 = locked
-
-    // ==================== 常量 ====================
-
-    uint256 private constant _UNLOCKED = 1;
-    uint256 private constant _LOCKED = 2;
-    uint256 private constant BASIS_POINTS = 10000; // 基点分母
-
-    // ==================== 事件 ====================
-
-    /// @notice 投资事件
-    event Invested(
-        address indexed user,
-        PackageType indexed pkg,
-        uint256 amount,
-        uint256 profit,
-        uint256 unlockTime,
-        address indexed referrer,
-        uint256 referralAmount
-    );
-
-    /// @notice 提取事件
-    event Withdrawn(
-        address indexed user,
-        uint256 indexed investmentId,
-        uint256 principal,
-        uint256 profit
-    );
-
-    /// @notice 推荐奖励事件
-    event ReferralPaid(
-        address indexed referrer,
-        address indexed referee,
-        PackageType indexed pkg,
-        uint256 amount
-    );
-
-    /// @notice 资金发送至基金会事件
-    event FundsSentToFoundation(
-        address indexed from,
-        uint256 amount
-    );
-
-    /// @notice 基金会钱包变更事件
-    event FoundationWalletChanged(
-        address indexed oldWallet,
-        address indexed newWallet
-    );
-
-    /// @notice 合约回充事件
-    event ContractFunded(
-        address indexed funder,
-        uint256 amount
-    );
-
-    /// @notice 所有者提取事件
-    event OwnerWithdrawn(address indexed owner, uint256 amount);
-
-    /// @notice 紧急状态变更
-    event PauseStateChanged(bool paused);
-
-    /// @notice 众筹时间配置变更事件
-    event CrowdfundingTimeSet(
-        uint256 startTime,
-        uint256 endTime
-    );
-
-    /// @notice 理财包众筹目标变更事件
-    event PackageGoalSet(
-        PackageType indexed pkg,
-        uint256 goal
-    );
-
-    /// @notice 所有权转移
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
-
-    // ==================== 修饰符 ====================
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "WF: caller is not the owner");
-        _;
-    }
-
-    modifier whenNotPaused() {
-        require(!paused, "WF: contract is paused");
-        _;
-    }
-
-    modifier nonReentrant() {
-        require(_status == _UNLOCKED, "WF: reentrant call");
-        _status = _LOCKED;
-        _;
-        _status = _UNLOCKED;
-    }
-
-    // ==================== 构造函数 ====================
-
-    /**
-     * @param _foundationWallet 基金会众筹多签钱包地址
-     */
-    constructor(address _foundationWallet) {
-        require(_foundationWallet != address(0), "WF: zero foundation wallet");
-
-        owner = msg.sender;
-        foundationWallet = _foundationWallet;
-        _status = _UNLOCKED;
-
-        // 初始化4个理财包 (测试网：分钟级周期)
-        // 参数: 锁仓时长, 收益率(基点), 推荐奖率(基点)
-        packages[PackageType.THREE_MIN] = PackageInfo({
-            duration: 3 minutes,
-            profitRate: 500,     // 5%
-            referralRate: 200    // 2%
-        });
-
-        packages[PackageType.FIVE_MIN] = PackageInfo({
-            duration: 5 minutes,
-            profitRate: 1400,    // 14%
-            referralRate: 300    // 3%
-        });
-
-        packages[PackageType.FIFTEEN_MIN] = PackageInfo({
-            duration: 15 minutes,
-            profitRate: 4000,    // 40%
-            referralRate: 500    // 5%
-        });
-
-        packages[PackageType.THIRTY_MIN] = PackageInfo({
-            duration: 30 minutes,
-            profitRate: 10000,   // 100%
-            referralRate: 800    // 8%
-        });
-    }
-
-    // ==================== receive() / fallback() - 接收BNB并解析推荐人 ====================
-
-    /**
-     * @notice 接收 BNB 转账 (无 data)
-     * @dev 空 calldata → 默认为 3分钟理财包, 无推荐人
-     */
-    receive() external payable whenNotPaused {
-        _processInvestment(PackageType.THREE_MIN, address(0));
-    }
-
-    /**
-     * @notice 接收 BNB 转账 (带 data)
-     * @dev 从 calldata 中解析推荐人钱包地址 (默认为 3分钟理财包)
-     *
-     * data 字段格式 (16进制)：
-     *   - 20字节 (40个hex字符)：直接填写上级钱包地址
-     *     例：0xAbCd...1234 (40位hex, 不带0x前缀填 AbCd...)
-     *   - 也可以填 32字节 (64个hex字符)：前12字节补0 + 后20字节地址
-     *   - 长度不足20：视为无推荐人
-     *
-     * 如果需要选择其他理财包，请使用 invest() 函数
-     */
-    fallback() external payable whenNotPaused {
-        address referrer = _parseReferrerFromCalldata();
-        _processInvestment(PackageType.THREE_MIN, referrer);
-    }
-
-    // ==================== 核心：投资函数 ====================
-
-    /**
-     * @notice 投资指定理财包
-     * @param _pkg 理财包类型 (1=3分钟, 2=5分钟, 3=15分钟, 4=30分钟)
-     * @param _referrer 推荐人地址 (address(0) 表示无推荐人)
-     *
-     * 资金分发：
-     *   - 推荐奖 → 秒到推荐人钱包
-     *   - 剩余 → 直发基金会多签钱包
-     *
-     * 要求：
-     *   - 推荐人必须是已参与的钱包地址
-     *   - 不能推荐自己
-     *   - msg.value > 0
-     */
-    function invest(PackageType _pkg, address _referrer)
-        external
-        payable
-        whenNotPaused
-        nonReentrant
+const CONTRACT_ABI = [{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "WealthFundTestnet",
+  "sourceName": "contracts/WealthFundTestnet.sol",
+  "abi": [
     {
-        _processInvestment(_pkg, _referrer);
-    }
-
-    /**
-     * @notice 无推荐人投资
-     * @param _pkg 理财包类型
-     */
-    function investWithoutReferrer(PackageType _pkg)
-        external
-        payable
-        whenNotPaused
-        nonReentrant
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_foundationWallet",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
     {
-        _processInvestment(_pkg, address(0));
-    }
-
-    /**
-     * @dev 内部投资处理逻辑 (CEI 模式)
-     *
-     * 资金分发：投资金额 → 推荐奖(如适用) + 基金会金额
-     *   - referralAmount → 推荐人钱包
-     *   - foundationAmount → 基金会多签钱包
-     */
-    function _processInvestment(PackageType _pkg, address _referrer) private {
-        // ======== 1. CHECKS ========
-
-        require(_pkg != PackageType.NONE, "WF: invalid package type");
-        require(msg.value > 0, "WF: must send BNB");
-
-        // 众筹时间检查 (如果已设置)
-        if (crowdfundingStartTime > 0) {
-            require(block.timestamp >= crowdfundingStartTime, "WF: crowdfunding not started");
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "funder",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
         }
-        if (crowdfundingEndTime > 0) {
-            require(block.timestamp <= crowdfundingEndTime, "WF: crowdfunding ended");
-        }
-
-        // 检查该理财包的众筹目标是否已满
-        uint256 pkgGoal = packageGoal[_pkg];
-        if (pkgGoal > 0) {
-            require(packageRaised[_pkg] < pkgGoal, "WF: package crowdfunding goal reached");
-        }
-
-        PackageInfo memory pkgInfo = packages[_pkg];
-
-        // 验证推荐人
-        if (_referrer != address(0)) {
-            require(_referrer != msg.sender, "WF: cannot refer yourself");
-            require(isParticipant[_referrer], "WF: referrer must be a participant");
-        }
-
-        // ======== 2. EFFECTS ========
-
-        // 计算收益和推荐奖
-        uint256 profit = (msg.value * pkgInfo.profitRate) / BASIS_POINTS;
-        uint256 referralAmount = 0;
-        uint256 foundationAmount = msg.value;
-
-        if (_referrer != address(0)) {
-            referralAmount = (msg.value * pkgInfo.referralRate) / BASIS_POINTS;
-            foundationAmount = msg.value - referralAmount;
-        }
-
-        // 初始化 / 更新用户统计
-        if (!userStats[msg.sender].exists) {
-            userStats[msg.sender].exists = true;
-            isParticipant[msg.sender] = true;
-            totalUsers++;
-        }
-
-        UserStats storage stats = userStats[msg.sender];
-
-        // 创建投资记录
-        uint256 investmentId = investments[msg.sender].length;
-        uint256 unlockTime = block.timestamp + pkgInfo.duration;
-
-        investments[msg.sender].push(Investment({
-            id: investmentId,
-            pkg: _pkg,
-            amount: msg.value,
-            profit: profit,
-            startTime: block.timestamp,
-            unlockTime: unlockTime,
-            withdrawn: false,
-            referrer: _referrer
-        }));
-
-        // 更新统计
-        stats.totalInvested += msg.value;
-        stats.investmentCount++;
-        stats.activeInvestments++;
-        totalInvestedBNB += msg.value;
-
-        // 更新该理财包的已筹金额
-        packageRaised[_pkg] += msg.value;
-
-        // 更新推荐人统计
-        if (_referrer != address(0) && referralAmount > 0) {
-            userStats[_referrer].totalReferralEarnings += referralAmount;
-            userStats[_referrer].referralCount++;
-            totalReferralPaid += referralAmount;
-        }
-
-        // 更新基金会统计
-        totalSentToFoundation += foundationAmount;
-
-        // ======== 3. INTERACTIONS ========
-
-        // 推荐奖励：秒到推荐人钱包
-        if (_referrer != address(0) && referralAmount > 0) {
-            (bool sent, ) = payable(_referrer).call{value: referralAmount}("");
-            require(sent, "WF: referral payment failed");
-
-            emit ReferralPaid(_referrer, msg.sender, _pkg, referralAmount);
-        }
-
-        // 剩余资金：直发基金会多签钱包
-        if (foundationAmount > 0) {
-            (bool sent, ) = payable(foundationWallet).call{value: foundationAmount}("");
-            require(sent, "WF: foundation payment failed");
-
-            emit FundsSentToFoundation(msg.sender, foundationAmount);
-        }
-
-        emit Invested(
-            msg.sender,
-            _pkg,
-            msg.value,
-            profit,
-            unlockTime,
-            _referrer,
-            referralAmount
-        );
-    }
-
-    // ==================== 核心：提取函数 ====================
-
-    /**
-     * @notice 提取单笔到期投资的本金+收益
-     * @param _investmentId 投资索引 (该用户在 investments[] 中的位置)
-     * @dev 提取需要合约内有足够的 BNB (由基金会通过 fundContract 回充)
-     */
-    function withdraw(uint256 _investmentId)
-        external
-        whenNotPaused
-        nonReentrant
+      ],
+      "name": "ContractFunded",
+      "type": "event"
+    },
     {
-        Investment[] storage userInvestments = investments[msg.sender];
-        require(_investmentId < userInvestments.length, "WF: invalid investment ID");
-
-        Investment storage inv = userInvestments[_investmentId];
-        require(!inv.withdrawn, "WF: already withdrawn");
-        require(block.timestamp >= inv.unlockTime, "WF: still locked");
-
-        // ======== EFFECTS ========
-        inv.withdrawn = true;
-        userStats[msg.sender].activeInvestments--;
-
-        uint256 totalPayout = inv.amount + inv.profit;
-
-        userStats[msg.sender].totalPrincipalReturned += inv.amount;
-        userStats[msg.sender].totalProfitEarned += inv.profit;
-        totalPaidPrincipal += inv.amount;
-        totalPaidProfit += inv.profit;
-
-        // ======== INTERACTIONS ========
-        (bool sent, ) = payable(msg.sender).call{value: totalPayout}("");
-        require(sent, "WF: withdrawal failed");
-
-        emit Withdrawn(msg.sender, _investmentId, inv.amount, inv.profit);
-    }
-
-    /**
-     * @notice 一键提取所有到期投资
-     * @dev 提取需要合约内有足够的 BNB (由基金会通过 fundContract 回充)
-     */
-    function withdrawAll()
-        external
-        whenNotPaused
-        nonReentrant
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "startTime",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "endTime",
+          "type": "uint256"
+        }
+      ],
+      "name": "CrowdfundingTimeSet",
+      "type": "event"
+    },
     {
-        Investment[] storage userInvestments = investments[msg.sender];
-        uint256 length = userInvestments.length;
-        uint256 totalPayout;
-
-        // ======== CHECKS + EFFECTS ========
-        for (uint256 i = 0; i < length; i++) {
-            Investment storage inv = userInvestments[i];
-            if (!inv.withdrawn && block.timestamp >= inv.unlockTime) {
-                inv.withdrawn = true;
-                userStats[msg.sender].activeInvestments--;
-                totalPayout += (inv.amount + inv.profit);
-
-                userStats[msg.sender].totalPrincipalReturned += inv.amount;
-                userStats[msg.sender].totalProfitEarned += inv.profit;
-                totalPaidPrincipal += inv.amount;
-                totalPaidProfit += inv.profit;
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "oldWallet",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newWallet",
+          "type": "address"
+        }
+      ],
+      "name": "FoundationWalletChanged",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "FundsSentToFoundation",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "pkg",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "profit",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "unlockTime",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "referrer",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "referralAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "Invested",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "OwnerWithdrawn",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "pkg",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "goal",
+          "type": "uint256"
+        }
+      ],
+      "name": "PackageGoalSet",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "bool",
+          "name": "paused",
+          "type": "bool"
+        }
+      ],
+      "name": "PauseStateChanged",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "referrer",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "referee",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "pkg",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ReferralPaid",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "investmentId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "principal",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "profit",
+          "type": "uint256"
+        }
+      ],
+      "name": "Withdrawn",
+      "type": "event"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "fallback"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "_pkg",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "calculateProfit",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "profit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalReturn",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "crowdfundingEndTime",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "crowdfundingStartTime",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "foundationWallet",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "fundContract",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_user",
+          "type": "address"
+        }
+      ],
+      "name": "getActiveAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "total",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getAllPackageCrowdfunding",
+      "outputs": [
+        {
+          "internalType": "uint256[4]",
+          "name": "goals",
+          "type": "uint256[4]"
+        },
+        {
+          "internalType": "uint256[4]",
+          "name": "raised",
+          "type": "uint256[4]"
+        },
+        {
+          "internalType": "uint256[4]",
+          "name": "progressBps",
+          "type": "uint256[4]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getAllPackages",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "duration",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "profitRate",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "referralRate",
+              "type": "uint256"
             }
+          ],
+          "internalType": "struct WealthFundTestnet.PackageInfo[4]",
+          "name": "",
+          "type": "tuple[4]"
         }
-
-        require(totalPayout > 0, "WF: no matured investments");
-
-        // ======== INTERACTIONS ========
-        (bool sent, ) = payable(msg.sender).call{value: totalPayout}("");
-        require(sent, "WF: withdrawal failed");
-
-        emit Withdrawn(msg.sender, type(uint256).max, 0, totalPayout);
-    }
-
-    // ==================== 基金会相关功能 ====================
-
-    /**
-     * @notice 回充 BNB 到合约 (供基金会/管理员为用户提取提供资金)
-     * @dev 任何人都可以调用，主要用于基金会多签钱包向合约回充资金
-     */
-    function fundContract() external payable {
-        require(msg.value > 0, "WF: must send BNB");
-        emit ContractFunded(msg.sender, msg.value);
-    }
-
-    /**
-     * @notice 设置众筹时间窗口 (仅所有者)
-     * @param _startTime 众筹开始时间 (unix timestamp)
-     * @param _endTime 众筹结束时间 (unix timestamp)
-     */
-    function setCrowdfundingTime(
-        uint256 _startTime,
-        uint256 _endTime
-    ) external onlyOwner {
-        if (_endTime > 0 && _startTime > 0) {
-            require(_endTime > _startTime, "WF: end must be after start");
-        }
-        crowdfundingStartTime = _startTime;
-        crowdfundingEndTime = _endTime;
-        emit CrowdfundingTimeSet(_startTime, _endTime);
-    }
-
-    /**
-     * @notice 设置理财包众筹目标 (仅所有者)
-     * @param _pkg 理财包类型
-     * @param _goal 众筹目标金额 (wei, 0 表示无限制)
-     */
-    function setPackageGoal(
-        PackageType _pkg,
-        uint256 _goal
-    ) external onlyOwner {
-        require(_pkg != PackageType.NONE, "WF: invalid package type");
-        packageGoal[_pkg] = _goal;
-        emit PackageGoalSet(_pkg, _goal);
-    }
-
-    /**
-     * @notice 批量设置理财包众筹目标 (仅所有者)
-     * @param _pkgs 理财包类型数组
-     * @param _goals 对应目标金额数组 (wei, 0 表示无限制)
-     */
-    function setPackageGoals(
-        PackageType[] calldata _pkgs,
-        uint256[] calldata _goals
-    ) external onlyOwner {
-        require(_pkgs.length == _goals.length, "WF: length mismatch");
-        for (uint256 i = 0; i < _pkgs.length; i++) {
-            require(_pkgs[i] != PackageType.NONE, "WF: invalid package type");
-            packageGoal[_pkgs[i]] = _goals[i];
-            emit PackageGoalSet(_pkgs[i], _goals[i]);
-        }
-    }
-
-    /**
-     * @notice 更新基金会多签钱包地址 (仅所有者)
-     * @param _newWallet 新的基金会钱包地址
-     */
-    function setFoundationWallet(address _newWallet) external onlyOwner {
-        require(_newWallet != address(0), "WF: zero address");
-        require(_newWallet != foundationWallet, "WF: same wallet");
-
-        emit FoundationWalletChanged(foundationWallet, _newWallet);
-        foundationWallet = _newWallet;
-    }
-
-    // ==================== 管理员功能 ====================
-
-    /**
-     * @notice 提取合约余额 (仅所有者，紧急用途)
-     * @param _amount 提取金额 (wei)
-     * @dev 正常情况下合约余额来自基金会回充，此函数仅作紧急用途
-     */
-    function ownerWithdraw(uint256 _amount) external onlyOwner {
-        require(_amount > 0, "WF: amount must be positive");
-        require(_amount <= address(this).balance, "WF: insufficient balance");
-
-        (bool sent, ) = payable(owner).call{value: _amount}("");
-        require(sent, "WF: owner withdrawal failed");
-
-        emit OwnerWithdrawn(owner, _amount);
-    }
-
-    /**
-     * @notice 提取全部合约余额 (仅所有者，紧急用途)
-     */
-    function ownerWithdrawAll() external onlyOwner {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "WF: no balance");
-
-        (bool sent, ) = payable(owner).call{value: balance}("");
-        require(sent, "WF: owner withdrawal failed");
-
-        emit OwnerWithdrawn(owner, balance);
-    }
-
-    /**
-     * @notice 紧急暂停 / 恢复
-     */
-    function setPaused(bool _paused) external onlyOwner {
-        paused = _paused;
-        emit PauseStateChanged(_paused);
-    }
-
-    /**
-     * @notice 转移所有权
-     * @param _newOwner 新所有者地址
-     */
-    function transferOwnership(address _newOwner) external onlyOwner {
-        require(_newOwner != address(0), "WF: cannot transfer to zero address");
-        require(_newOwner != owner, "WF: already the owner");
-
-        emit OwnershipTransferred(owner, _newOwner);
-        owner = _newOwner;
-    }
-
-    /**
-     * @notice 更新理财包配置 (仅所有者)
-     * @param _pkg 理财包类型
-     * @param _duration 锁仓时长 (秒)
-     * @param _profitRate 收益率 (基点)
-     * @param _referralRate 推荐奖率 (基点)
-     */
-    function updatePackage(
-        PackageType _pkg,
-        uint256 _duration,
-        uint256 _profitRate,
-        uint256 _referralRate
-    ) external onlyOwner {
-        require(_pkg != PackageType.NONE, "WF: invalid package type");
-        require(_duration > 0, "WF: duration must be positive");
-        require(_profitRate <= BASIS_POINTS * 10, "WF: profit rate too high");
-        require(_referralRate <= BASIS_POINTS, "WF: referral rate too high");
-
-        packages[_pkg] = PackageInfo({
-            duration: _duration,
-            profitRate: _profitRate,
-            referralRate: _referralRate
-        });
-    }
-
-    // ==================== 查询函数 ====================
-
-    /**
-     * @notice 获取理财包详情
-     */
-    function getPackageInfo(PackageType _pkg)
-        external
-        view
-        returns (
-            uint256 duration,
-            uint256 profitRate,
-            uint256 referralRate
-        )
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
     {
-        PackageInfo memory pkg = packages[_pkg];
-        return (pkg.duration, pkg.profitRate, pkg.referralRate);
-    }
-
-    /**
-     * @notice 获取所有理财包信息
-     */
-    function getAllPackages()
-        external
-        view
-        returns (PackageInfo[4] memory)
-    {
-        return [
-            packages[PackageType.THREE_MIN],
-            packages[PackageType.FIVE_MIN],
-            packages[PackageType.FIFTEEN_MIN],
-            packages[PackageType.THIRTY_MIN]
-        ];
-    }
-
-    /**
-     * @notice 获取用户所有投资 (注意: 数组可能很大, 前端注意分页)
-     */
-    function getUserInvestments(address _user)
-        external
-        view
-        returns (Investment[] memory)
-    {
-        return investments[_user];
-    }
-
-    /**
-     * @notice 获取用户投资笔数
-     */
-    function getUserInvestmentCount(address _user)
-        external
-        view
-        returns (uint256)
-    {
-        return investments[_user].length;
-    }
-
-    /**
-     * @notice 分页获取用户投资
-     */
-    function getUserInvestmentsPaginated(
-        address _user,
-        uint256 _offset,
-        uint256 _limit
-    )
-        external
-        view
-        returns (
-            Investment[] memory result,
-            uint256 total
-        )
-    {
-        Investment[] storage userInvestments = investments[_user];
-        total = userInvestments.length;
-
-        if (_offset >= total) {
-            return (new Investment[](0), total);
+      "inputs": [],
+      "name": "getContractBalance",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
-
-        uint256 end = _offset + _limit;
-        if (end > total) {
-            end = total;
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getCrowdfundingInfo",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "totalGoal",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "startTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "endTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalRaised",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "progressBps",
+          "type": "uint256"
         }
-
-        uint256 size = end - _offset;
-        result = new Investment[](size);
-
-        for (uint256 i = 0; i < size; i++) {
-            result[i] = userInvestments[_offset + i];
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getGlobalStats",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "_totalInvestedBNB",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_totalPaidProfit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_totalPaidPrincipal",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_totalReferralPaid",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_totalSentToFoundation",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_totalUsers",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_contractBalance",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "_paused",
+          "type": "bool"
         }
-    }
-
-    /**
-     * @notice 计算用户可提取的到期金额
-     */
-    function getMaturedAmount(address _user) external view returns (uint256 total) {
-        Investment[] storage userInvestments = investments[_user];
-        uint256 length = userInvestments.length;
-
-        for (uint256 i = 0; i < length; i++) {
-            Investment storage inv = userInvestments[i];
-            if (!inv.withdrawn && block.timestamp >= inv.unlockTime) {
-                total += (inv.amount + inv.profit);
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_user",
+          "type": "address"
+        }
+      ],
+      "name": "getMaturedAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "total",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_user",
+          "type": "address"
+        }
+      ],
+      "name": "getMaturedInvestmentIds",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "ids",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "_pkg",
+          "type": "uint8"
+        }
+      ],
+      "name": "getPackageCrowdfunding",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "goal",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "raised",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "progressBps",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "_pkg",
+          "type": "uint8"
+        }
+      ],
+      "name": "getPackageInfo",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "duration",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "profitRate",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "referralRate",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_user",
+          "type": "address"
+        }
+      ],
+      "name": "getUserInvestmentCount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_user",
+          "type": "address"
+        }
+      ],
+      "name": "getUserInvestments",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum WealthFundTestnet.PackageType",
+              "name": "pkg",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "profit",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "startTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "unlockTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "withdrawn",
+              "type": "bool"
+            },
+            {
+              "internalType": "address",
+              "name": "referrer",
+              "type": "address"
             }
+          ],
+          "internalType": "struct WealthFundTestnet.Investment[]",
+          "name": "",
+          "type": "tuple[]"
         }
-    }
-
-    /**
-     * @notice 获取用户进行中的投资总金额
-     */
-    function getActiveAmount(address _user) external view returns (uint256 total) {
-        Investment[] storage userInvestments = investments[_user];
-        uint256 length = userInvestments.length;
-
-        for (uint256 i = 0; i < length; i++) {
-            Investment storage inv = userInvestments[i];
-            if (!inv.withdrawn) {
-                total += inv.amount;
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_user",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_offset",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_limit",
+          "type": "uint256"
+        }
+      ],
+      "name": "getUserInvestmentsPaginated",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum WealthFundTestnet.PackageType",
+              "name": "pkg",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "profit",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "startTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "unlockTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "withdrawn",
+              "type": "bool"
+            },
+            {
+              "internalType": "address",
+              "name": "referrer",
+              "type": "address"
             }
+          ],
+          "internalType": "struct WealthFundTestnet.Investment[]",
+          "name": "result",
+          "type": "tuple[]"
+        },
+        {
+          "internalType": "uint256",
+          "name": "total",
+          "type": "uint256"
         }
-    }
-
-    /**
-     * @notice 获取用户统计信息
-     */
-    function getUserStats(address _user)
-        external
-        view
-        returns (UserStats memory)
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
     {
-        return userStats[_user];
-    }
-
-    /**
-     * @notice 获取所有投资中可提取的ID列表
-     * @dev 前端可轮询此函数，检查哪些投资已到期可提取
-     */
-    function getMaturedInvestmentIds(address _user)
-        external
-        view
-        returns (uint256[] memory ids)
-    {
-        Investment[] storage userInvestments = investments[_user];
-        uint256 length = userInvestments.length;
-
-        // 先计算有多少个到期的
-        uint256 count;
-        for (uint256 i = 0; i < length; i++) {
-            if (!userInvestments[i].withdrawn &&
-                block.timestamp >= userInvestments[i].unlockTime) {
-                count++;
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_user",
+          "type": "address"
+        }
+      ],
+      "name": "getUserStats",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "exists",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalInvested",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalPrincipalReturned",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalProfitEarned",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "totalReferralEarnings",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "referralCount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "investmentCount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "activeInvestments",
+              "type": "uint256"
             }
+          ],
+          "internalType": "struct WealthFundTestnet.UserStats",
+          "name": "",
+          "type": "tuple"
         }
-
-        ids = new uint256[](count);
-        uint256 idx;
-        for (uint256 i = 0; i < length; i++) {
-            if (!userInvestments[i].withdrawn &&
-                block.timestamp >= userInvestments[i].unlockTime) {
-                ids[idx] = i;
-                idx++;
-            }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "_pkg",
+          "type": "uint8"
+        },
+        {
+          "internalType": "address",
+          "name": "_referrer",
+          "type": "address"
         }
-    }
-
-    /**
-     * @notice 计算投资预期收益
-     */
-    function calculateProfit(PackageType _pkg, uint256 _amount)
-        external
-        view
-        returns (uint256 profit, uint256 totalReturn)
+      ],
+      "name": "invest",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
     {
-        PackageInfo memory pkg = packages[_pkg];
-        profit = (_amount * pkg.profitRate) / BASIS_POINTS;
-        totalReturn = _amount + profit;
-    }
-
-    /**
-     * @notice 获取合约余额
-     */
-    function getContractBalance() external view returns (uint256) {
-        return address(this).balance;
-    }
-
-    /**
-     * @notice 获取众筹时间配置与总进度
-     */
-    function getCrowdfundingInfo()
-        external
-        view
-        returns (
-            uint256 totalGoal,
-            uint256 startTime,
-            uint256 endTime,
-            uint256 totalRaised,
-            uint256 progressBps  // 总进度 (基点, e.g. 5000 = 50%)
-        )
-    {
-        startTime = crowdfundingStartTime;
-        endTime = crowdfundingEndTime;
-        // 计算所有理财包目标总和
-        totalGoal = packageGoal[PackageType.THREE_MIN]
-                  + packageGoal[PackageType.FIVE_MIN]
-                  + packageGoal[PackageType.FIFTEEN_MIN]
-                  + packageGoal[PackageType.THIRTY_MIN];
-        totalRaised = totalInvestedBNB;
-        if (totalGoal > 0) {
-            progressBps = (totalRaised * 10000) / totalGoal;
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "_pkg",
+          "type": "uint8"
         }
-    }
-
-    /**
-     * @notice 获取指定理财包的众筹进度
-     */
-    function getPackageCrowdfunding(PackageType _pkg)
-        external
-        view
-        returns (
-            uint256 goal,
-            uint256 raised,
-            uint256 progressBps
-        )
+      ],
+      "name": "investWithoutReferrer",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
     {
-        goal = packageGoal[_pkg];
-        raised = packageRaised[_pkg];
-        if (goal > 0) {
-            progressBps = (raised * 10000) / goal;
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
-    }
-
-    /**
-     * @notice 获取所有理财包的众筹进度
-     */
-    function getAllPackageCrowdfunding()
-        external
-        view
-        returns (
-            uint256[4] memory goals,
-            uint256[4] memory raised,
-            uint256[4] memory progressBps
-        )
-    {
-        PackageType[4] memory pkgTypes = [
-            PackageType.THREE_MIN,
-            PackageType.FIVE_MIN,
-            PackageType.FIFTEEN_MIN,
-            PackageType.THIRTY_MIN
-        ];
-        for (uint256 i = 0; i < 4; i++) {
-            goals[i] = packageGoal[pkgTypes[i]];
-            raised[i] = packageRaised[pkgTypes[i]];
-            if (goals[i] > 0) {
-                progressBps[i] = (raised[i] * 10000) / goals[i];
-            }
+      ],
+      "name": "investments",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "pkg",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "profit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "startTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "unlockTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "withdrawn",
+          "type": "bool"
+        },
+        {
+          "internalType": "address",
+          "name": "referrer",
+          "type": "address"
         }
-    }
-
-    /**
-     * @notice 获取全局统计
-     */
-    function getGlobalStats()
-        external
-        view
-        returns (
-            uint256 _totalInvestedBNB,
-            uint256 _totalPaidProfit,
-            uint256 _totalPaidPrincipal,
-            uint256 _totalReferralPaid,
-            uint256 _totalSentToFoundation,
-            uint256 _totalUsers,
-            uint256 _contractBalance,
-            bool _paused
-        )
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
     {
-        return (
-            totalInvestedBNB,
-            totalPaidProfit,
-            totalPaidPrincipal,
-            totalReferralPaid,
-            totalSentToFoundation,
-            totalUsers,
-            address(this).balance,
-            paused
-        );
-    }
-
-    // ==================== 内部函数 ====================
-
-    /**
-     * @dev 从 calldata 解析推荐人地址 (fallback 中使用)
-     *
-     * 支持格式：
-     *   1. 20字节原始地址: calldataload → [20字节地址][12字节0] → shr(96) → 地址
-     *   2. 32字节(含0前缀): calldataload → [12字节0][20字节地址] → shr(96) → 地址
-     *   3. 长度 < 20: 返回 address(0)
-     */
-    function _parseReferrerFromCalldata()
-        internal
-        pure
-        returns (address referrer)
-    {
-        uint256 dataLen;
-        assembly {
-            dataLen := calldatasize()
-            if gt(dataLen, 19) {
-                referrer := shr(96, calldataload(0))
-            }
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
         }
+      ],
+      "name": "isParticipant",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ownerWithdraw",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ownerWithdrawAll",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "name": "packageGoal",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "name": "packageRaised",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "name": "packages",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "duration",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "profitRate",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "referralRate",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "paused",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_startTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_endTime",
+          "type": "uint256"
+        }
+      ],
+      "name": "setCrowdfundingTime",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_newWallet",
+          "type": "address"
+        }
+      ],
+      "name": "setFoundationWallet",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "_pkg",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_goal",
+          "type": "uint256"
+        }
+      ],
+      "name": "setPackageGoal",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType[]",
+          "name": "_pkgs",
+          "type": "uint8[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "_goals",
+          "type": "uint256[]"
+        }
+      ],
+      "name": "setPackageGoals",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "_paused",
+          "type": "bool"
+        }
+      ],
+      "name": "setPaused",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalInvestedBNB",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalPaidPrincipal",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalPaidProfit",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalReferralPaid",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalSentToFoundation",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalUsers",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum WealthFundTestnet.PackageType",
+          "name": "_pkg",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_duration",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_profitRate",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_referralRate",
+          "type": "uint256"
+        }
+      ],
+      "name": "updatePackage",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "userStats",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "exists",
+          "type": "bool"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalInvested",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalPrincipalReturned",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalProfitEarned",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "totalReferralEarnings",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "referralCount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "investmentCount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "activeInvestments",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_investmentId",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdraw",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdrawAll",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
     }
-}
 
 ];
 </script>
